@@ -7,6 +7,9 @@ import {
   fbMe,
   fbLogout,
   shareOnFacebook,
+  loadCachedUser,
+  saveCachedUser,
+  clearCachedUser,
 } from './facebook.js';
 
 const START_LIVES = 3;
@@ -93,6 +96,7 @@ export default function GameCanvas() {
   // Facebook section on the end screens: idle → loading → logged-in/out | unavailable
   const [fbStatus, setFbStatus] = useState('idle');
   const [fbUser, setFbUser] = useState(null);
+  const [shareHint, setShareHint] = useState('');
   // Challenge from a shared link: /?score=1234&species=Shark&name=Christian
   const [challenge] = useState(() => {
     try {
@@ -105,42 +109,97 @@ export default function GameCanvas() {
     }
   });
 
-  // Load the FB SDK lazily — only once an end screen is shown.
+  // Restore a cached login instantly on any screen (landing included) —
+  // no SDK needed, localStorage only.
+  useEffect(() => {
+    const cached = loadCachedUser();
+    if (cached) {
+      setFbUser(cached);
+      setFbStatus('logged-in');
+    }
+  }, []);
+
+  // Load the FB SDK lazily — only once an end screen is shown. A cached
+  // login restores instantly; the SDK check in the background may only
+  // upgrade the state, never downgrade it (third-party cookies are blocked
+  // in Safari/Brave, so getLoginStatus reports logged-out even when the
+  // user's FB authorization is still valid).
   useEffect(() => {
     if ((phase === 'gameover' || phase === 'won') && fbStatus === 'idle') {
-      setFbStatus('loading');
-      initFacebook().then(setFbStatus);
+      const cached = loadCachedUser();
+      if (cached) {
+        setFbUser(cached);
+        setFbStatus('logged-in');
+        initFacebook().then((status) => {
+          if (status === 'logged-in') setFbStatus('logged-in');
+        });
+      } else {
+        setFbStatus('loading');
+        initFacebook().then(setFbStatus);
+      }
     }
   }, [phase, fbStatus]);
 
   // Fetch the profile (name + avatar) once logged in.
   useEffect(() => {
     if (fbStatus === 'logged-in' && !fbUser) {
-      fbMe().then(setFbUser).catch(() => {});
+      fbMe()
+        .then((user) => {
+          setFbUser(user);
+          saveCachedUser(user);
+        })
+        .catch(() => {});
     }
   }, [fbStatus, fbUser]);
 
   function handleFbLogin() {
     setFbStatus('loading');
-    fbLogin()
+    // Ensure the SDK is loaded first — a cache-restored login never loads it,
+    // so logging in right after a logout would fail on an uninitialized FB.
+    initFacebook()
+      .then(() => fbLogin())
       .then((status) => {
         setFbStatus(status);
-        if (status === 'logged-in') fbMe().then(setFbUser).catch(() => {});
+        if (status === 'logged-in') {
+          fbMe()
+            .then((user) => {
+              setFbUser(user);
+              saveCachedUser(user);
+            })
+            .catch(() => {
+              // couldn't fetch the profile (e.g. blocked cookies) — still
+              // logged in, just without name/avatar
+              setFbUser({ name: 'Player', pictureUrl: null });
+              saveCachedUser({ name: 'Player', pictureUrl: null });
+            });
+        }
       })
       .catch(() => setFbStatus('unavailable'));
   }
 
   function handleFbLogout() {
     setFbUser(null);
+    clearCachedUser();
     fbLogout().then(() => setFbStatus('logged-out'));
   }
 
   function handleFbShare() {
     const current = speciesFor(hudRef.current.tier);
+    setShareHint('');
     shareOnFacebook({
       score: hudRef.current.score,
       species: current.name,
-      playerName: fbUser?.name,
+      playerName: fbUser?.name?.split(' ')[0],
+    }).then((result) => {
+      if (result === 'copied') {
+        setShareHint(
+          '✅ Your brag message is on its way! If the text box in the Facebook window is empty, just paste (⌘V / Ctrl+V) — it\'s on your clipboard.'
+        );
+      } else if (result === 'none') {
+        setShareHint(
+          'Hmm, copying failed — the link preview below your post still shows your score.'
+        );
+      }
     });
   }
 
@@ -704,48 +763,79 @@ export default function GameCanvas() {
           </div>
           <div style={{ fontSize: 16, fontWeight: 600 }}>{hud.score} pts</div>
           <div style={{ fontSize: 16 }}>{'🐟'.repeat(hud.lives)}</div>
-          {fbUser && (
+        </div>
+      )}
+
+      {/* Facebook avatar chip — visible on every screen once logged in */}
+      {fbUser && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'rgba(255,255,255,0.14)',
+            borderRadius: 999,
+            padding: '4px 8px 4px 4px',
+            pointerEvents: 'auto',
+            textShadow: 'none',
+          }}
+        >
+          {fbUser.pictureUrl ? (
+            <img
+              src={fbUser.pictureUrl}
+              alt=""
+              width={32}
+              height={32}
+              style={{ borderRadius: '50%', display: 'block' }}
+            />
+          ) : (
             <div
               style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: '#1877f2',
+                color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                background: 'rgba(255,255,255,0.14)',
-                borderRadius: 999,
-                padding: '4px 8px 4px 4px',
-                marginLeft: 'auto',
+                justifyContent: 'center',
+                fontSize: 14,
+                fontWeight: 700,
               }}
             >
-              <img
-                src={fbUser.pictureUrl}
-                alt=""
-                width={32}
-                height={32}
-                style={{ borderRadius: '50%', display: 'block' }}
-              />
-              <span style={{ fontSize: 14, fontWeight: 600 }}>
-                {fbUser.name.split(' ')[0]}
-              </span>
-              <button
-                onClick={handleFbLogout}
-                title="Log out of Facebook"
-                style={{
-                  width: 22,
-                  height: 22,
-                  lineHeight: '20px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: 'rgba(255,255,255,0.2)',
-                  color: '#eaf6ff',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                ✕
-              </button>
+              {(fbUser.name || '?').charAt(0).toUpperCase()}
             </div>
           )}
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#eaf6ff',
+            }}
+          >
+            {fbUser.name.split(' ')[0]}
+          </span>
+          <button
+            onClick={handleFbLogout}
+            title="Log out of Facebook"
+            style={{
+              width: 22,
+              height: 22,
+              lineHeight: '20px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'rgba(255,255,255,0.2)',
+              color: '#eaf6ff',
+              fontSize: 12,
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -847,11 +937,29 @@ export default function GameCanvas() {
 
           {/* Facebook: login to unlock sharing; hidden entirely if unavailable */}
           {(phase === 'gameover' || phase === 'won') &&
-            fbStatus !== 'idle' &&
-            fbStatus !== 'unavailable' && (
+            fbStatus !== 'idle' && (
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                 {fbStatus === 'loading' && (
                   <span style={{ opacity: 0.7, fontSize: 14 }}>Connecting to Facebook…</span>
+                )}
+                {fbStatus === 'unavailable' && (
+                  <span style={{ opacity: 0.75, fontSize: 14 }}>
+                    Facebook is unreachable right now.{' '}
+                    <button
+                      onClick={() => setFbStatus('idle')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#9fe870',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        padding: 0,
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </span>
                 )}
                 {fbStatus === 'logged-out' && (
                   <>
@@ -880,25 +988,53 @@ export default function GameCanvas() {
                   </>
                 )}
                 {fbStatus === 'logged-in' && (
-                  <button
-                    onClick={handleFbShare}
-                    style={{
-                      padding: '10px 24px',
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: '#fff',
-                      background: '#1877f2',
-                      border: 'none',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}
-                  >
-                    <FacebookIcon />
-                    Share score on Facebook
-                  </button>
+                  <>
+                    <button
+                      onClick={handleFbShare}
+                      style={{
+                        padding: '10px 24px',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: '#fff',
+                        background: '#1877f2',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <FacebookIcon />
+                      Share score on Facebook
+                    </button>
+                    <button
+                      onClick={handleFbLogout}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'rgba(234, 246, 255, 0.65)',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: 4,
+                      }}
+                    >
+                      Log out{fbUser ? ` (${fbUser.name.split(' ')[0]})` : ''}
+                    </button>
+                    {shareHint && (
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: '#9fe870',
+                          maxWidth: 340,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {shareHint}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             )}
