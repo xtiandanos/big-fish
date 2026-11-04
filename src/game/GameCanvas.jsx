@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SPECIES, CRITTERS, speciesFor, pointsForTier } from './species.js';
 import { drawFish, drawCritter } from './fishArt.js';
+import { initFacebook, fbLogin, fbShare } from './facebook.js';
 
 const START_LIVES = 3;
 const INVINCIBLE_TIME = 2.2;
@@ -67,6 +68,26 @@ export default function GameCanvas() {
   const startRef = useRef(null);
   const hudRef = useRef(hud);
   hudRef.current = hud;
+  // Facebook section on the end screens: idle → loading → logged-in/out | unavailable
+  const [fbStatus, setFbStatus] = useState('idle');
+
+  // Load the FB SDK lazily — only once an end screen is shown.
+  useEffect(() => {
+    if ((phase === 'gameover' || phase === 'won') && fbStatus === 'idle') {
+      setFbStatus('loading');
+      initFacebook().then(setFbStatus);
+    }
+  }, [phase, fbStatus]);
+
+  function handleFbLogin() {
+    setFbStatus('loading');
+    fbLogin().then(setFbStatus).catch(() => setFbStatus('unavailable'));
+  }
+
+  function handleFbShare() {
+    const current = speciesFor(hudRef.current.tier);
+    fbShare({ score: hudRef.current.score, species: current.name });
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -708,6 +729,56 @@ export default function GameCanvas() {
           >
             {phase === 'menu' ? 'Dive in' : 'Play again'}
           </button>
+
+          {/* Facebook: login to unlock sharing; hidden entirely if unavailable */}
+          {(phase === 'gameover' || phase === 'won') &&
+            fbStatus !== 'idle' &&
+            fbStatus !== 'unavailable' && (
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                {fbStatus === 'loading' && (
+                  <span style={{ opacity: 0.7, fontSize: 14 }}>Connecting to Facebook…</span>
+                )}
+                {fbStatus === 'logged-out' && (
+                  <>
+                    <span style={{ fontSize: 14, opacity: 0.8 }}>
+                      Log in to share your score on Facebook
+                    </span>
+                    <button
+                      onClick={handleFbLogin}
+                      style={{
+                        padding: '10px 24px',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: '#fff',
+                        background: '#1877f2',
+                        border: 'none',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Login with Facebook
+                    </button>
+                  </>
+                )}
+                {fbStatus === 'logged-in' && (
+                  <button
+                    onClick={handleFbShare}
+                    style={{
+                      padding: '10px 24px',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: '#fff',
+                      background: '#1877f2',
+                      border: 'none',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Share score on Facebook
+                  </button>
+                )}
+              </div>
+            )}
         </div>
       )}
     </div>
