@@ -100,14 +100,21 @@ export function fbLogout() {
   });
 }
 
-// Share via the classic sharer popup — more reliable than the FB.ui dialog
-// (which renders blank in Development mode / on some mobile browsers).
-export function shareOnFacebook({ score, species }) {
-  const href = window.location.origin;
-  const quote = `🐠 I evolved into a ${species} and scored ${score} points in Big Fish! Can you beat me?`;
+// Share via the classic sharer popup. The shared URL carries
+// ?score=&species=&name= query params; edge middleware rewrites the page's
+// Open Graph tags for that URL, so the post's link-preview card shows the
+// app logo + the player's score (FB forbids pre-filling post text).
+export function shareOnFacebook({ score, species, playerName }) {
+  const params = new URLSearchParams({
+    score: String(score),
+    species,
+  });
+  if (playerName) params.set('name', playerName);
+  const shareUrl = `${window.location.origin}/?${params.toString()}`;
+  const quote = `🐠 I scored ${score} points in Big Fish! Can you beat me?`;
   const url =
     'https://www.facebook.com/sharer/sharer.php?u=' +
-    encodeURIComponent(href) +
+    encodeURIComponent(shareUrl) +
     '&quote=' +
     encodeURIComponent(quote);
   window.open(

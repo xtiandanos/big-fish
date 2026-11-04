@@ -93,6 +93,17 @@ export default function GameCanvas() {
   // Facebook section on the end screens: idle → loading → logged-in/out | unavailable
   const [fbStatus, setFbStatus] = useState('idle');
   const [fbUser, setFbUser] = useState(null);
+  // Challenge from a shared link: /?score=1234&species=Shark&name=Christian
+  const [challenge] = useState(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const score = Number(p.get('score'));
+      if (!score) return null;
+      return { score, species: p.get('species'), name: p.get('name') };
+    } catch {
+      return null;
+    }
+  });
 
   // Load the FB SDK lazily — only once an end screen is shown.
   useEffect(() => {
@@ -126,7 +137,11 @@ export default function GameCanvas() {
 
   function handleFbShare() {
     const current = speciesFor(hudRef.current.tier);
-    shareOnFacebook({ score: hudRef.current.score, species: current.name });
+    shareOnFacebook({
+      score: hudRef.current.score,
+      species: current.name,
+      playerName: fbUser?.name,
+    });
   }
 
   useEffect(() => {
@@ -779,6 +794,24 @@ export default function GameCanvas() {
               and evolve — guppy → clownfish → angelfish → snapper → tuna → shark →
               whale shark. Never touch anything bigger than you!
             </p>
+          )}
+          {phase === 'menu' && challenge && (
+            <div
+              style={{
+                margin: '8px 0 4px',
+                padding: '12px 20px',
+                borderRadius: 12,
+                background: 'rgba(255, 205, 92, 0.15)',
+                border: '1px solid rgba(255, 205, 92, 0.5)',
+                fontSize: 17,
+                color: '#ffe9a8',
+              }}
+            >
+              🔥 {challenge.name || 'Someone'} scored{' '}
+              {challenge.score.toLocaleString()} points
+              {challenge.species ? ` as a ${challenge.species}` : ''} — can you
+              beat them?
+            </div>
           )}
           {phase === 'gameover' && (
             <p style={{ fontSize: 22, margin: '4px 0' }}>
