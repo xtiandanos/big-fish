@@ -53,6 +53,22 @@ function makeFish(tier, W, H, playerTier) {
   };
 }
 
+// Facebook brand "f" mark, used on login/share buttons
+function FacebookIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 36 36"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M25 23.8l1.2-7.3h-7v-4.9c0-2 1-3.9 4.1-3.9h3.2V1.7C26.5 1.5 24.2 1.1 21.6 1.1c-5.6 0-9.3 3.4-9.3 9.7v5.7H4.8v7.3h7.5V35h8V23.8H25z" />
+    </svg>
+  );
+}
+
 export default function GameCanvas() {
   const canvasRef = useRef(null);
   const [phase, setPhase] = useState('menu'); // menu | playing | gameover | won
@@ -754,8 +770,12 @@ export default function GameCanvas() {
                         border: 'none',
                         borderRadius: 8,
                         cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 10,
                       }}
                     >
+                      <FacebookIcon />
                       Login with Facebook
                     </button>
                   </>
@@ -772,8 +792,12 @@ export default function GameCanvas() {
                       border: 'none',
                       borderRadius: 8,
                       cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 10,
                     }}
                   >
+                    <FacebookIcon />
                     Share score on Facebook
                   </button>
                 )}
