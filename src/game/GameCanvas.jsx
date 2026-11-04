@@ -15,6 +15,11 @@ import {
 const START_LIVES = 3;
 const INVINCIBLE_TIME = 2.2;
 
+// Feature flag: Facebook login/sharing is hidden until Meta business
+// verification is complete (needs a business permit). Set to true to
+// re-enable the login button, share button, and avatar chip everywhere.
+const FB_ENABLED = false;
+
 function rand(a, b) {
   return a + Math.random() * (b - a);
 }
@@ -112,6 +117,7 @@ export default function GameCanvas() {
   // Restore a cached login instantly on any screen (landing included) —
   // no SDK needed, localStorage only.
   useEffect(() => {
+    if (!FB_ENABLED) return;
     const cached = loadCachedUser();
     if (cached) {
       setFbUser(cached);
@@ -125,6 +131,7 @@ export default function GameCanvas() {
   // in Safari/Brave, so getLoginStatus reports logged-out even when the
   // user's FB authorization is still valid).
   useEffect(() => {
+    if (!FB_ENABLED) return;
     if ((phase === 'gameover' || phase === 'won') && fbStatus === 'idle') {
       const cached = loadCachedUser();
       if (cached) {
@@ -142,6 +149,7 @@ export default function GameCanvas() {
 
   // Fetch the profile (name + avatar) once logged in.
   useEffect(() => {
+    if (!FB_ENABLED) return;
     if (fbStatus === 'logged-in' && !fbUser) {
       fbMe()
         .then((user) => {
@@ -767,7 +775,7 @@ export default function GameCanvas() {
       )}
 
       {/* Facebook avatar chip — visible on every screen once logged in */}
-      {fbUser && (
+      {FB_ENABLED && fbUser && (
         <div
           style={{
             position: 'absolute',
@@ -936,7 +944,8 @@ export default function GameCanvas() {
           </button>
 
           {/* Facebook: login to unlock sharing; hidden entirely if unavailable */}
-          {(phase === 'gameover' || phase === 'won') &&
+          {FB_ENABLED &&
+            (phase === 'gameover' || phase === 'won') &&
             fbStatus !== 'idle' && (
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                 {fbStatus === 'loading' && (
