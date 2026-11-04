@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { SPECIES, CRITTERS, speciesFor, pointsForTier } from './species.js';
 import { drawFish, drawCritter } from './fishArt.js';
-import { initFacebook, fbLogin, fbShare } from './facebook.js';
+import {
+  initFacebook,
+  fbLogin,
+  fbMe,
+  fbLogout,
+  shareOnFacebook,
+} from './facebook.js';
 
 const START_LIVES = 3;
 const INVINCIBLE_TIME = 2.2;
@@ -86,6 +92,7 @@ export default function GameCanvas() {
   hudRef.current = hud;
   // Facebook section on the end screens: idle → loading → logged-in/out | unavailable
   const [fbStatus, setFbStatus] = useState('idle');
+  const [fbUser, setFbUser] = useState(null);
 
   // Load the FB SDK lazily — only once an end screen is shown.
   useEffect(() => {
@@ -95,14 +102,31 @@ export default function GameCanvas() {
     }
   }, [phase, fbStatus]);
 
+  // Fetch the profile (name + avatar) once logged in.
+  useEffect(() => {
+    if (fbStatus === 'logged-in' && !fbUser) {
+      fbMe().then(setFbUser).catch(() => {});
+    }
+  }, [fbStatus, fbUser]);
+
   function handleFbLogin() {
     setFbStatus('loading');
-    fbLogin().then(setFbStatus).catch(() => setFbStatus('unavailable'));
+    fbLogin()
+      .then((status) => {
+        setFbStatus(status);
+        if (status === 'logged-in') fbMe().then(setFbUser).catch(() => {});
+      })
+      .catch(() => setFbStatus('unavailable'));
+  }
+
+  function handleFbLogout() {
+    setFbUser(null);
+    fbLogout().then(() => setFbStatus('logged-out'));
   }
 
   function handleFbShare() {
     const current = speciesFor(hudRef.current.tier);
-    fbShare({ score: hudRef.current.score, species: current.name });
+    shareOnFacebook({ score: hudRef.current.score, species: current.name });
   }
 
   useEffect(() => {
@@ -665,6 +689,48 @@ export default function GameCanvas() {
           </div>
           <div style={{ fontSize: 16, fontWeight: 600 }}>{hud.score} pts</div>
           <div style={{ fontSize: 16 }}>{'🐟'.repeat(hud.lives)}</div>
+          {fbUser && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'rgba(255,255,255,0.14)',
+                borderRadius: 999,
+                padding: '4px 8px 4px 4px',
+                marginLeft: 'auto',
+              }}
+            >
+              <img
+                src={fbUser.pictureUrl}
+                alt=""
+                width={32}
+                height={32}
+                style={{ borderRadius: '50%', display: 'block' }}
+              />
+              <span style={{ fontSize: 14, fontWeight: 600 }}>
+                {fbUser.name.split(' ')[0]}
+              </span>
+              <button
+                onClick={handleFbLogout}
+                title="Log out of Facebook"
+                style={{
+                  width: 22,
+                  height: 22,
+                  lineHeight: '20px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: '#eaf6ff',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
       )}
 

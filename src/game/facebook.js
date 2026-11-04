@@ -28,7 +28,7 @@ function loadSdk() {
       window.FB.init({
         appId: APP_ID,
         version: SDK_VERSION,
-        cookie: false,
+        cookie: true, // persist login across reloads
         xfbml: false,
         status: true,
       });
@@ -75,11 +75,44 @@ export function fbLogin() {
   });
 }
 
-export function fbShare({ score, species }) {
+// Basic profile for the header: name + square avatar (public_profile only).
+export function fbMe() {
   return new Promise((resolve, reject) => {
     if (!window.FB) return reject(new Error('Facebook SDK not ready'));
-    const href = window.location.origin;
-    const quote = `🐠 I evolved into a ${species} and scored ${score} points in Big Fish! Can you beat me? ${href}`;
-    window.FB.ui({ method: 'share', href, quote }, (res) => resolve(res));
+    window.FB.api('/me', { fields: 'name,picture.type(square)' }, (res) => {
+      if (res && !res.error) {
+        resolve({
+          id: res.id,
+          name: res.name,
+          pictureUrl: res.picture?.data?.url,
+        });
+      } else {
+        reject(res?.error || new Error('Could not load profile'));
+      }
+    });
   });
+}
+
+export function fbLogout() {
+  return new Promise((resolve) => {
+    if (!window.FB) return resolve('logged-out');
+    window.FB.logout(() => resolve('logged-out'));
+  });
+}
+
+// Share via the classic sharer popup — more reliable than the FB.ui dialog
+// (which renders blank in Development mode / on some mobile browsers).
+export function shareOnFacebook({ score, species }) {
+  const href = window.location.origin;
+  const quote = `🐠 I evolved into a ${species} and scored ${score} points in Big Fish! Can you beat me?`;
+  const url =
+    'https://www.facebook.com/sharer/sharer.php?u=' +
+    encodeURIComponent(href) +
+    '&quote=' +
+    encodeURIComponent(quote);
+  window.open(
+    url,
+    'fbshare',
+    'width=640,height=580,toolbar=no,menubar=no,noopener'
+  );
 }
