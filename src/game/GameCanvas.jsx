@@ -451,6 +451,20 @@ export default function GameCanvas() {
         else drawFish(ctx, e, game.time);
       }
 
+      // steer target marker (essential on touch, handy with a mouse too)
+      if (phaseRef.current === 'playing' && pointer.active) {
+        const rr = 10 + Math.sin(game.time * 6) * 3;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pointer.x, pointer.y, rr, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.beginPath();
+        ctx.arc(pointer.x, pointer.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // player
       const p = game.player;
       if (p && phaseRef.current === 'playing') {
@@ -533,7 +547,14 @@ export default function GameCanvas() {
       pointer.y = e.clientY;
       pointer.active = true;
     }
+    function onDown(e) {
+      // taps and touch-drags steer the fish too
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.active = true;
+    }
     window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerdown', onDown);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -541,6 +562,7 @@ export default function GameCanvas() {
       window.removeEventListener('keydown', kd);
       window.removeEventListener('keyup', ku);
       window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerdown', onDown);
     };
   }, []);
 
@@ -554,7 +576,12 @@ export default function GameCanvas() {
         onClick={() => {
           if (phase !== 'playing') startRef.current();
         }}
-        style={{ display: 'block', cursor: 'none' }}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{
+          display: 'block',
+          cursor: 'none',
+          touchAction: 'none',
+        }}
       />
 
       {/* HUD */}

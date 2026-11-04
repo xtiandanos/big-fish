@@ -11,6 +11,10 @@ body {
   font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
   -webkit-user-select: none;
   user-select: none;
+  /* let the game own all touch gestures — no scroll/zoom/pull-to-refresh */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
