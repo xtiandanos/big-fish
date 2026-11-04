@@ -12,7 +12,10 @@ const DEFAULT_DESC =
   'Start as a tiny guppy, eat smaller organisms, and evolve up the food chain to the mighty Whale Shark. Can you survive the ocean?';
 
 export default async function middleware(request) {
-  const res = await fetch(request);
+  // Fetch the static file directly, NOT `fetch(request)`: an internal fetch of
+  // the request URL re-enters this middleware (matcher '/') and loops -> Vercel
+  // 508 INFINITE_LOOP_DETECTED. /index.html doesn't match '/', so it can't loop.
+  const res = await fetch(new URL('/index.html', request.url));
   const url = new URL(request.url);
   const score = Number(url.searchParams.get('score'));
   if (!score) return res;
